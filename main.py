@@ -50,7 +50,7 @@ def main():
 
     for i in lst_date_period:
         calcdate = dt.strptime(i['calcdate'], '%d.%m.%Y')
-        month = calcdate.month
+        month = calcdate.strftime('%m_%Y')
 
         if month != month_pre:
             monthly_rate['month'].append(month)
@@ -64,8 +64,14 @@ def main():
         month_pre = month
         calcdate_pre = calcdate
 
+    # можемо отримати пустий список, якщо кінець відбору припаде на вихідні на початку нового місяця
+    # потрібно перед записом останнього списку перевіряти його на заповненність, якщо пусто то видаляти останній записаний елемент 'month'
+    # або взагалі весь відібраний період перебирати з кінця (від більш раньої дати до поточної), але вірогідність помилки присутня
     monthly_rate['rate'].append(lst_rate)
     print(monthly_rate)
+
+# Вивести середнє значення та відхилення курсу за кожний місяць.
+# Дану інформацію записати у файл за допомогою pickle.
 
 
 if __name__ == '__main__':
