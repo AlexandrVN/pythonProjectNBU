@@ -2,7 +2,7 @@ import requests
 import json
 from datetime import date as d
 from datetime import datetime as dt
-import time
+
 
 def main():
     print('Hi')
@@ -24,14 +24,13 @@ def main():
     sort = "exchangedate"  # ('exchangedate' / 'r030' / 'cc' / 'rate')
     order = "desc"  # ('desc' – за спаданням, 'asc' – за зростанням)
 
-    param_start = (f'start={start}&')
-    param_end = (f'end={end}&')
-    param_valcode = (f'valcode={currency}&')
-    param_sort = (f'sort={sort}&')
-    param_order = (f'order={order}&')
+    param_start = f'start={start}&'
+    param_end = f'end={end}&'
+    param_valcode = f'valcode={currency}&'
+    param_sort = f'sort={sort}&'
+    param_order = f'order={order}&'
 
-    url = (
-        f"https://bank.gov.ua/NBU_Exchange/exchange_site?{param_start}{param_end}{param_valcode}{param_sort}{param_order}json")
+    url = f"https://bank.gov.ua/NBU_Exchange/exchange_site?{param_start}{param_end}{param_valcode}{param_sort}{param_order}json"
 
     s = requests.Session()
     response = s.get(url=url, headers=headers)
@@ -55,9 +54,10 @@ def main():
         month = calcdate.month
 
         if month != month_pre:
-            monthly_rate['month'].append(month_pre)
-            monthly_rate['rate'].append(lst_rate)
-            lst_rate = []
+            monthly_rate['month'].append(month)
+            if len(lst_rate) != 0:
+                monthly_rate['rate'].append(lst_rate)
+                lst_rate = []
 
         if calcdate != calcdate_pre:
             lst_rate.append(i['rate_per_unit'])
@@ -65,14 +65,9 @@ def main():
         month_pre = month
         calcdate_pre = calcdate
 
+    monthly_rate['rate'].append(lst_rate)
     print(monthly_rate)
-
-
-
-
-
 
 
 if __name__ == '__main__':
     main()
-
