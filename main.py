@@ -13,7 +13,7 @@ def main():
     }
 
     # Вказуємо українську локаль
-    locale.setlocale(locale.LC_TIME, 'uk_UA')  # ще може бути 'uk_UA.utf8'
+    locale.setlocale(locale.LC_TIME, 'uk_UA')  # в інших випадках може бути 'uk_UA.utf8'
 
     today = d.today()
     date_end = d(today.year, today.month, today.day)
@@ -31,7 +31,7 @@ def main():
     s = requests.Session()
     response = s.get(url=url, headers=headers)
 
-    with open("result_NBU_data_period.json", "w", encoding="utf-8") as file:
+    with open(f"result_NBU_data_period-{currency}.json", "w", encoding="utf-8") as file:
         json.dump(response.json(), file, indent=4, ensure_ascii=False)
 
     lst_date_period = response.json()
@@ -71,8 +71,7 @@ def main():
         calcdate_pre = calcdate
 
     # можемо отримати пустий список, якщо кінець відбору припаде на вихідні на початку нового місяця
-    # потрібно перед записом останнього списку перевіряти його на заповненність, якщо пусто то видаляти останній записаний елемент 'month'
-    # або взагалі весь відібраний період перебирати з кінця (від більш раньої дати до поточної), але вірогідність помилки присутня
+    # перед записом останнього списку перевіряємо його на заповненність, якщо пусто то видаляємо останній записаний елемент 'month'
     if len(lst_rate) == 0:
         monthly_rate['month'].pop()
     else:
@@ -96,6 +95,8 @@ def main():
         print(f"Період: {monthly_rate['month'][k]}")
         print(f"Середне значення курсу по валюті {currency}: {average}")
         print(f"Відхилення: {deviation}")
+        print()
+
         print()
         print()
 
