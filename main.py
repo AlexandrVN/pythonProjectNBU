@@ -1,9 +1,9 @@
-import requests
 import json
-import locale
-from datetime import date as d
-from datetime import datetime as dt
+import csv
 
+import requests
+import locale
+import datetime as dtd
 
 def main():
     headers = {
@@ -15,29 +15,38 @@ def main():
     # Вказуємо українську локаль
     locale.setlocale(locale.LC_TIME, 'uk_UA')  # в інших випадках може бути 'uk_UA.utf8'
 
-    today = d.today()
-    date_end = d(today.year, today.month, today.day)
-    date_start = date_end.replace(year=today.year - 1)  # період відбору з кроком 1 рік від поточної дати
-    # date_start = date_end.replace(month=today.month - 1)      # період відбору з кроком 1 місяць від поточної дати
+    # Отримуємо поточну дату
+    today = dtd.date.today()
+    # today = dtd.date.fromisoformat('2023-07-04') # змінна для тестування
 
+    # період відбору 1 рік (відбір повних 12 місяців від поточної дати)
+    date_start = today.replace(year=today.year - 1, day=1)
+    date_end = today.replace(day=1) - dtd.timedelta(days=1)
+
+    # Присвоєння значень параметрам запиту
     start = date_start.strftime("%Y%m%d")
     end = date_end.strftime("%Y%m%d")
     currency = "EUR"
     sort = "exchangedate"  # ('exchangedate' / 'r030' / 'cc' / 'rate')
-    order = "desc"  # ('desc' – за спаданням, 'asc' – за зростанням)
+    order = "asc"  # ('desc' – за спаданням, 'asc' – за зростанням)
 
     url = f"https://bank.gov.ua/NBU_Exchange/exchange_site?start={start}&end={end}&valcode={currency}&sort={sort}&order={order}&json"
 
     s = requests.Session()
     response = s.get(url=url, headers=headers)
 
-    with open(f"result_NBU_data_period-{currency}.json", "w", encoding="utf-8") as file:
-        json.dump(response.json(), file, indent=4, ensure_ascii=False)
+    # # Збереження отриманного результату в файл формату JSON
+    # with open(f"result_NBU_data_period-{currency}.json", "w", encoding="utf-8") as file:
+    #     json.dump(response.json(), file, indent=4, ensure_ascii=False)
 
+    # # Збереження отриманного результату в файл формату CSV
+    # with open(f"result_NBU_data_period-{currency}.csv", "w", newline='', encoding="utf-8") as file:
+    #     spamwriter = csv.writer(file, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    #     # spamwriter.writerow([''] + [''] + [''] + [''] + [''])
+    #     # spamwriter.writerow(['', '', '', '', ''])
+
+    # Збереження отриманного результату до змінної
     lst_date_period = response.json()
-
-    # print(type(lst_date_period))
-    # print(lst_date_period)
 
     monthly_rate = {'month': [],
                     'rate': []}
@@ -45,33 +54,35 @@ def main():
     month_pre = ''
     calcdate_pre = ''
 
+    '''
+    Параметр date_rate може набувати значень 'exchangedate' та 'calcdate':
+        - по календарним дням - використовується дата з поля 'exchangedate', для розрахунку середнього значення курсу, 
+        при цьому береться курс за кожен день місяця (по цій методиці визначається середній курс на сайті НБУ);
+        - по робочим дням - використовується дата з поля 'calcdate', для розрахунку середнього значення курсу,  
+        при цьому береться курс тільки за дні місяця, в які він встановлювався;
+    '''
+    date_rate = 'exchangedate'
+
     for i in lst_date_period:
-        '''
-        По календарним дням - при використанні дати з поля 'exchangedate', для розрахунку середнього значення курсу
-        беремо курс за кожен день. По цій методиці визначається середній курс на сайті НБУ
-
-        По робочим дням - при використанні дати з поля 'calcdate', для розрахунку середнього значення курсу 
-        беремо курс тільки за дні, в які він встановлювався
-        '''
-        # calcdate = dt.strptime(i['exchangedate'], '%d.%m.%Y')
-        calcdate = dt.strptime(i['calcdate'], '%d.%m.%Y')
-
+        calcdate = dtd.datetime.strptime(i[date_rate], '%d.%m.%Y')
         month = calcdate.strftime('%Y_%B')
 
-        if month != month_pre:
-            monthly_rate['month'].append(month)
-            if len(lst_rate) != 0:
-                monthly_rate['rate'].append(lst_rate)
-                lst_rate = []
+        if calcdate.date() < date_start:
+            continue
+        else:
+            if month != month_pre:
+                monthly_rate['month'].append(month)
+                if len(lst_rate) != 0:
+                    monthly_rate['rate'].append(lst_rate)
+                    lst_rate = []
 
-        if calcdate != calcdate_pre:
-            lst_rate.append(i['rate_per_unit'])
+            if calcdate != calcdate_pre:
+                lst_rate.append(i['rate_per_unit'])
 
-        month_pre = month
-        calcdate_pre = calcdate
+            month_pre = month
+            calcdate_pre = calcdate
 
-    # можемо отримати пустий список, якщо кінець відбору припаде на вихідні на початку нового місяця
-    # перед записом останнього списку перевіряємо його на заповненність, якщо пусто то видаляємо останній записаний елемент 'month'
+    # Перевірка на пустий список
     if len(lst_rate) == 0:
         monthly_rate['month'].pop()
     else:
@@ -79,26 +90,36 @@ def main():
 
     # print(monthly_rate)
 
-# Вивести середнє значення та відхилення курсу за кожний місяць.
-# Дану інформацію записати у файл за допомогою pickle.
+# Визначення середнього значення та відхилення курсу за кожний місяць
 
-    average_prev = 0
-    arrey_rate = len(monthly_rate['month'])
-    for k in range(arrey_rate):
+    count_of_months = len(monthly_rate['month'])
+    monthly_rate.update({'average': [], 'deviation': []})
+
+    for k in range(count_of_months):
         average_curr = float(sum(monthly_rate['rate'][k]) / len(monthly_rate['rate'][k]))
-        if (k + 1) < arrey_rate:
-            average_prev = float(sum(monthly_rate['rate'][k + 1]) / len(monthly_rate['rate'][k + 1]))
 
+        if (k - 1) < 0:
+            average_prev = average_curr
+        else:
+            average_prev = float(sum(monthly_rate['rate'][k - 1]) / len(monthly_rate['rate'][k - 1]))
+
+            # З округленням
         average = '%.4F' % (average_curr)
         deviation = '%.4F' % (average_curr - average_prev)
+        monthly_rate['average'].append(average)
+        monthly_rate['deviation'].append(deviation)
+
+        #     # Без округлення
+        #     monthly_rate['average'].append(average_curr)
+        #     monthly_rate['deviation'].append(average_curr - average_prev)
 
         print(f"Період: {monthly_rate['month'][k]}")
         print(f"Середне значення курсу по валюті {currency}: {average}")
         print(f"Відхилення: {deviation}")
         print()
+        print()
 
-        print()
-        print()
+    # print(monthly_rate)
 
 
 if __name__ == '__main__':
